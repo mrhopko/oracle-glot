@@ -89,3 +89,8 @@ def test_remove_join_marks_join_predicate_is_null():
     asts = read_asts("sql/join_predicate_is_null.sql")
     assert_ast_pair(asts[0], asts[1])
     assert_ast_pair(asts[2], asts[3])
+
+
+def test_non_join_in_where():
+    asts = read_asts("sql/non_join_in_where.sql")
+    assert_ast_pair(asts[0], asts[1])
