@@ -13,3 +13,5 @@ WHERE table1.column = table2.column(+);
 converted_sql = convert.remove_join_marks_from_oracle_sql(sql)
 print(converted_sql)
 ```
+
+See tests for more examples.
