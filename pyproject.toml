@@ -1,0 +1,33 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oracle_glot"
+version = "0.0.01"
+description = "Convert oracle code to sql"
+readme = "README.md"
+authors = [
+    { name = "Chris Hopkinson", email = "therealchrishopkinson@hotmail.com" },
+]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["sql", "oracle", "plsql", "pl/sql", "glot"]
+dependencies = ["sqlglot"]
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+dev = ["black", "pytest", "mypy"]
+
+[tool.pytest.ini_options]
+log_cli = "true"
+log_cli_level = "DEBUG"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+pythonpath = "."
