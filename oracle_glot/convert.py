@@ -129,3 +129,31 @@ def remove_join_marks_from_oracle_sql(sql: str) -> str:
     if isinstance(ast, exp.Select):
         ast = remove_join_marks(ast)
     return ast.sql(dialect="oracle", pretty=True)
+
+
+def _has_join_mark(col: exp.Column) -> bool:
+    if not isinstance(col, exp.Column):
+        return False
+    result = col.args.get("join_mark", False)
+    if isinstance(result, bool):
+        return bool(result)
+    return False
+
+
+def _equality_to_join(eq: exp.Binary) -> Optional[exp.Join]:
+    if not (isinstance(eq.left, exp.Column) and isinstance(eq.right, exp.Column)):
+        logger.warn("Equality is not between two columns - cannot convert to join")
+        return None
+    left: exp.Column = eq.left
+    right: exp.Column = eq.right
+    new_eq = copy.deepcopy(eq)
+    new_eq.left.set("join_mark", False)
+    new_eq.right.set("join_mark", False)
+    if _has_join_mark(left) and _has_join_mark(right):
+        return sqlglot.parse_one(f"OUTER JOIN {right.table}", into=exp.Join).on(new_eq)
+    if _has_join_mark(eq.left):
+        return sqlglot.parse_one(f"LEFT JOIN {left.table}", into=exp.Join).on(new_eq)
+    if _has_join_mark(eq.right):
+        return sqlglot.parse_one(f"LEFT JOIN {right.table}", into=exp.Join).on(new_eq)
+
+    return None
