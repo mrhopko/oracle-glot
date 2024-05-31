@@ -4,6 +4,7 @@ from sqlglot import exp
 from oracle_glot import convert
 import logging
 import itertools
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -63,3 +64,15 @@ def test_remove_join_marks():
     oracle = asts[3]
     remove_marks = convert.remove_join_marks(join_marks)
     assert remove_marks.sql(dialect="oracle") == oracle.sql(dialect="oracle")
+
+
+def test_remove_join_marks_from_oracle_sql():
+    # test for convert.remove_join_marks()
+    file = "sql/subquery.sql"
+    with open(file, "r") as f:
+        sql = f.read()
+    sqls = sql.split(";")
+    join_marks = sqls[0]
+    oracle = sqls[1]
+    remove_marks = convert.remove_join_marks_from_oracle_sql(join_marks)
+    assert re.sub("\s", "", remove_marks) == re.sub("\s", "", oracle)
