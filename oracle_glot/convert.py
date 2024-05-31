@@ -2,18 +2,9 @@ import sqlglot
 from sqlglot import exp
 import sqlglot.optimizer
 from sqlglot.optimizer.eliminate_subqueries import eliminate_subqueries
-from sqlglot.optimizer.scope import build_scope, find_all_in_scope
 import copy
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 import logging
-
-# if the parent is the expression being replaced, then replace returns the new expression without replacing the node
-# walk creates a list of nodes in the tree.
-# if we want to update the parent, we create a new tree.
-# we have to update the parent last.
-# we need to get a new tree after each replacement.
-
-# where equality is not being popped from the tree. after node.pop.
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +14,14 @@ def _update_from(
     new_join_dict: Dict[str, exp.Join],
     old_join_dict: Dict[str, exp.Join],
 ):
+    """If the from clause needs to become a new join, find an appropriate table to use as the new from.
+    updates select in place
+
+    Args:
+        select (exp.Select): The select statement to update
+        new_join_dict (Dict[str, exp.Join]): The dictionary of new joins
+        old_join_dict (Dict[str, exp.Join]): The dictionary of old joins
+    """
     old_from = select.args["from"]
     if not old_from.alias_or_name in new_join_dict.keys():
         logger.debug("Old From not replaced")
@@ -41,6 +40,16 @@ def _update_from(
 def _update_join_dict(
     join: exp.Join, join_dict: Dict[str, exp.Join]
 ) -> Dict[str, exp.Join]:
+    """Update the join dictionary with the new join.
+    If the join already exists, update the on clause.
+
+    Args:
+        join (exp.Join): The join to add to the dictionary
+        join_dict (Dict[str, exp.Join]): dictionary of joins where str is join.alias_or_name
+
+    Returns:
+        Dict[str, exp.Join]: The updated dictionary of joins
+    """
     if join.alias_or_name in join_dict.keys():
         join_dict[join.alias_or_name].set(
             "on",
@@ -55,12 +64,57 @@ def _update_join_dict(
 
 
 def _clean_binary_node(node: exp.Expression):
-    # promote child if binary is incomplete.
+    """if the node is left with only one child, promote the child to the parent node.
+    transformation is done in place.
+
+    Args:
+        node (exp.Expression): The node to clean"""
     if isinstance(node, exp.Binary):
         if node.left is None:
             node.replace(node.right)
         elif node.right is None:
             node.replace(node.left)
+
+
+def _has_join_mark(col: exp.Column) -> bool:
+    """Check if the column has a join mark
+
+    Args:
+        col (exp.Column): The column to check
+    """
+    if not isinstance(col, exp.Column):
+        return False
+    result = col.args.get("join_mark", False)
+    if isinstance(result, bool):
+        return bool(result)
+    return False
+
+
+def _equality_to_join(eq: exp.Binary) -> Optional[exp.Join]:
+    """Convert an equality predicate to a join if it contains a join mark
+
+    Args:
+        eq (exp.Binary): The equality expression to convert to a join
+
+    Returns:
+        Optional[exp.Join]: The join expression if the equality contains a join mark (otherwise None)
+    """
+    if not (isinstance(eq.left, exp.Column) and isinstance(eq.right, exp.Column)):
+        logger.warn("Equality is not between two columns - cannot convert to join")
+        return None
+    left: exp.Column = eq.left
+    right: exp.Column = eq.right
+    new_eq = copy.deepcopy(eq)
+    new_eq.left.set("join_mark", False)
+    new_eq.right.set("join_mark", False)
+    if _has_join_mark(left) and _has_join_mark(right):
+        return sqlglot.parse_one(f"OUTER JOIN {right.table}", into=exp.Join).on(new_eq)
+    if _has_join_mark(eq.left):
+        return sqlglot.parse_one(f"LEFT JOIN {left.table}", into=exp.Join).on(new_eq)
+    if _has_join_mark(eq.right):
+        return sqlglot.parse_one(f"LEFT JOIN {right.table}", into=exp.Join).on(new_eq)
+
+    return None
 
 
 def remove_join_marks(select: exp.Select) -> exp.Select:
@@ -129,31 +183,3 @@ def remove_join_marks_from_oracle_sql(sql: str) -> str:
     if isinstance(ast, exp.Select):
         ast = remove_join_marks(ast)
     return ast.sql(dialect="oracle", pretty=True)
-
-
-def _has_join_mark(col: exp.Column) -> bool:
-    if not isinstance(col, exp.Column):
-        return False
-    result = col.args.get("join_mark", False)
-    if isinstance(result, bool):
-        return bool(result)
-    return False
-
-
-def _equality_to_join(eq: exp.Binary) -> Optional[exp.Join]:
-    if not (isinstance(eq.left, exp.Column) and isinstance(eq.right, exp.Column)):
-        logger.warn("Equality is not between two columns - cannot convert to join")
-        return None
-    left: exp.Column = eq.left
-    right: exp.Column = eq.right
-    new_eq = copy.deepcopy(eq)
-    new_eq.left.set("join_mark", False)
-    new_eq.right.set("join_mark", False)
-    if _has_join_mark(left) and _has_join_mark(right):
-        return sqlglot.parse_one(f"OUTER JOIN {right.table}", into=exp.Join).on(new_eq)
-    if _has_join_mark(eq.left):
-        return sqlglot.parse_one(f"LEFT JOIN {left.table}", into=exp.Join).on(new_eq)
-    if _has_join_mark(eq.right):
-        return sqlglot.parse_one(f"LEFT JOIN {right.table}", into=exp.Join).on(new_eq)
-
-    return None
