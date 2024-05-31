@@ -76,7 +76,7 @@ def _clean_binary_node(node: exp.Expression):
             node.replace(node.left)
 
 
-def _has_join_mark(col: exp.Column) -> bool:
+def _has_join_mark(col: exp.Expression) -> bool:
     """Check if the column has a join mark
 
     Args:
@@ -99,21 +99,23 @@ def _equality_to_join(eq: exp.Binary) -> Optional[exp.Join]:
     Returns:
         Optional[exp.Join]: The join expression if the equality contains a join mark (otherwise None)
     """
-    if not (isinstance(eq.left, exp.Column) and isinstance(eq.right, exp.Column)):
-        logger.warn("Equality is not between two columns - cannot convert to join")
+    if not (isinstance(eq.left, exp.Column) or isinstance(eq.right, exp.Column)):
+        logger.warn("Equality does not contain a column - skipping")
         return None
-    left: exp.Column = eq.left
-    right: exp.Column = eq.right
     new_eq = copy.deepcopy(eq)
-    new_eq.left.set("join_mark", False)
-    new_eq.right.set("join_mark", False)
-    if _has_join_mark(left) and _has_join_mark(right):
-        return sqlglot.parse_one(f"OUTER JOIN {right.table}", into=exp.Join).on(new_eq)
-    if _has_join_mark(eq.left):
-        return sqlglot.parse_one(f"LEFT JOIN {left.table}", into=exp.Join).on(new_eq)
-    if _has_join_mark(eq.right):
-        return sqlglot.parse_one(f"LEFT JOIN {right.table}", into=exp.Join).on(new_eq)
+    left_has_join_mark = _has_join_mark(eq.left)
+    right_has_join_mark = _has_join_mark(eq.right)
 
+    if left_has_join_mark:
+        new_eq.left.set("join_mark", False)
+        join_on = new_eq.left
+        assert isinstance(join_on, exp.Column)
+        return sqlglot.parse_one(f"LEFT JOIN {join_on.table}", into=exp.Join).on(new_eq)
+    if right_has_join_mark:
+        new_eq.right.set("join_mark", False)
+        join_on = new_eq.right
+        assert isinstance(join_on, exp.Column)
+        return sqlglot.parse_one(f"LEFT JOIN {join_on.table}", into=exp.Join).on(new_eq)
     return None
 
 

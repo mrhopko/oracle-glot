@@ -9,6 +9,14 @@ import re
 logger = logging.getLogger(__name__)
 
 
+def read_asts(file: str):
+    with open(file, "r") as f:
+        sqls = f.read()
+    asts = sqlglot.parse(sqls, dialect="oracle")
+    logger.debug("asts: %s", len(asts))
+    return asts
+
+
 def create_join(x: int):
     return sqlglot.parse_one(
         f"INNER JOIN table{x} on table{x}.id = other_table.id", into=exp.Join
@@ -17,6 +25,11 @@ def create_join(x: int):
 
 def create_join_dict(xs: List[int]) -> Dict[str, exp.Join]:
     return {create_join(x).alias_or_name: create_join(x) for x in xs}
+
+
+def assert_ast_pair(join_marks, oracle):
+    remove_marks = convert.remove_join_marks(join_marks)
+    assert remove_marks.sql(dialect="oracle") == oracle.sql(dialect="oracle")
 
 
 def test_update_from():
@@ -50,20 +63,9 @@ def test_update_join():
 
 def test_remove_join_marks():
     # test for convert.remove_join_marks()
-    file = "sql/simple_select.sql"
-    with open(file, "r") as f:
-        sqls = f.read()
-    asts = sqlglot.parse(sqls, dialect="oracle")
-    logger.debug("asts: %s", len(asts))
-    join_marks = asts[0]
-    oracle = asts[1]
-    remove_marks = convert.remove_join_marks(join_marks)
-    assert remove_marks.sql(dialect="oracle") == oracle.sql(dialect="oracle")
-
-    join_marks = asts[2]
-    oracle = asts[3]
-    remove_marks = convert.remove_join_marks(join_marks)
-    assert remove_marks.sql(dialect="oracle") == oracle.sql(dialect="oracle")
+    asts = read_asts("sql/simple_select.sql")
+    assert_ast_pair(asts[0], asts[1])
+    assert_ast_pair(asts[2], asts[3])
 
 
 def test_remove_join_marks_from_oracle_sql():
@@ -76,3 +78,14 @@ def test_remove_join_marks_from_oracle_sql():
     oracle = sqls[1]
     remove_marks = convert.remove_join_marks_from_oracle_sql(join_marks)
     assert re.sub("\s", "", remove_marks) == re.sub("\s", "", oracle)
+
+
+def test_remove_join_marks_constant_in_join():
+    asts = read_asts("sql/constant_in_join.sql")
+    assert_ast_pair(asts[0], asts[1])
+
+
+def test_remove_join_marks_join_predicate_is_null():
+    asts = read_asts("sql/join_predicate_is_null.sql")
+    assert_ast_pair(asts[0], asts[1])
+    assert_ast_pair(asts[2], asts[3])
