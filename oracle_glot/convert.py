@@ -1,10 +1,8 @@
+import copy
+import logging
+from typing import Dict, Optional
 import sqlglot
 from sqlglot import exp
-import sqlglot.optimizer
-from sqlglot.optimizer.eliminate_subqueries import eliminate_subqueries
-import copy
-from typing import Dict, Optional
-import logging
 
 logger = logging.getLogger(__name__)
 
