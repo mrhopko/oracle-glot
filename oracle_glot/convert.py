@@ -132,6 +132,11 @@ def remove_join_marks_from_select(select: exp.Select) -> exp.Select:
     Returns:
         exp.Select: The AST with join marks removed
     """
+    if not select.args.get("where"):
+        return select
+    if not select.args.get("joins"):
+        return select
+
     old_joins: Dict[str, exp.Join] = {
         join.alias_or_name: join for join in list(select.args.get("joins", []))
     }
