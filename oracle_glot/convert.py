@@ -28,7 +28,8 @@ def _update_from(
     if len(in_old_not_new) >= 1:
         logger.debug("Replacing old from")
         new_from_name = list(old_join_dict.keys() - new_join_dict.keys())[0]
-        new_from = sqlglot.parse_one(f"FROM {new_from_name}", into=exp.From)
+        new_from_this = old_join_dict[new_from_name].this
+        new_from = exp.From(this=new_from_this)
         del old_join_dict[new_from_name]
         select.set("from", new_from)
     else:
