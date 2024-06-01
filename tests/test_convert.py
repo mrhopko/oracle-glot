@@ -28,7 +28,7 @@ def create_join_dict(xs: List[int]) -> Dict[str, exp.Join]:
 
 
 def assert_ast_pair(join_marks, oracle):
-    remove_marks = convert.remove_join_marks_from_select(join_marks)
+    remove_marks = convert.remove_join_marks(join_marks)
     assert remove_marks.sql(dialect="oracle") == oracle.sql(dialect="oracle")
 
 

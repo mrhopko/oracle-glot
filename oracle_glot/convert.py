@@ -164,7 +164,13 @@ def remove_join_marks_from_select(select: exp.Select) -> exp.Select:
 
 def remove_join_marks(ast: exp.Expression) -> exp.Expression:
     """Remove join marks from an expression
-    converts subqueries to CTEs."""
+    converts subqueries to CTEs.
+
+    Args:
+        ast (exp.Expression): The AST to remove join marks from
+
+    Returns:
+        exp.Expression: The AST with join marks removed"""
     ast = eliminate_subqueries(ast)
     select_nodes = list(ast.find_all(exp.Select))
     select_nodes.reverse()
