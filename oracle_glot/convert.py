@@ -119,7 +119,7 @@ def _equality_to_join(eq: exp.Binary) -> Optional[exp.Join]:
     return None
 
 
-def remove_join_marks(select: exp.Select) -> exp.Select:
+def remove_join_marks_from_select(select: exp.Select) -> exp.Select:
     """Remove join marks from the where columns in this select statement
     Converts them to joins and replaces any existing joins
 
@@ -162,6 +162,24 @@ def remove_join_marks(select: exp.Select) -> exp.Select:
     return select
 
 
+def remove_join_marks(ast: exp.Expression) -> exp.Expression:
+    """Remove join marks from an expression
+    converts subqueries to CTEs."""
+    ast = eliminate_subqueries(ast)
+    select_nodes = list(ast.find_all(exp.Select))
+    select_nodes.reverse()
+    # convert inner nodes first
+    for node in select_nodes:
+        if not node.parent:
+            continue
+        replacement = remove_join_marks_from_select(node)
+        node.replace(replacement)
+    # transform outer node
+    if isinstance(ast, exp.Select):
+        ast = remove_join_marks_from_select(ast)
+    return ast
+
+
 def remove_join_marks_from_oracle_sql(sql: str) -> str:
     """Remove join marks from the where columns in all subqueries within the provided select statement.
     subqueries are converted to CTEs using eliminate_subqueries.
@@ -172,16 +190,5 @@ def remove_join_marks_from_oracle_sql(sql: str) -> str:
     Returns:
         str: The SQL statement with join marks removed"""
     ast = sqlglot.parse_one(sql, dialect="oracle")
-    ast = eliminate_subqueries(ast)
-    select_nodes = list(ast.find_all(exp.Select))
-    select_nodes.reverse()
-    # convert inner nodes first
-    for node in select_nodes:
-        if not node.parent:
-            continue
-        replacement = remove_join_marks(node)
-        node.replace(replacement)
-    # transform outer node
-    if isinstance(ast, exp.Select):
-        ast = remove_join_marks(ast)
-    return ast.sql(dialect="oracle", pretty=True)
+    result = remove_join_marks(ast)
+    return result.sql(dialect="oracle", pretty=True)
