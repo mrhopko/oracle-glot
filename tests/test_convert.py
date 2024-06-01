@@ -61,11 +61,12 @@ def test_update_join():
     assert len(join_dict) == 3
 
 
-def test_remove_join_marks():
+def test_simple_select():
     # test for convert.remove_join_marks()
     asts = read_asts("sql/simple_select.sql")
     assert_ast_pair(asts[0], asts[1])
     assert_ast_pair(asts[2], asts[3])
+    assert_ast_pair(asts[4], asts[5])
 
 
 def test_remove_join_marks_from_oracle_sql():
