@@ -90,7 +90,9 @@ def _has_join_mark(col: exp.Expression) -> bool:
     return False
 
 
-def _equality_to_join(eq: exp.Binary) -> Optional[exp.Join]:
+def _equality_to_join(
+    eq: exp.Binary, old_joins: Dict[str, exp.Join], old_from: exp.From
+) -> Optional[exp.Join]:
     """Convert an equality predicate to a join if it contains a join mark
 
     Args:
@@ -108,15 +110,17 @@ def _equality_to_join(eq: exp.Binary) -> Optional[exp.Join]:
 
     if left_has_join_mark:
         new_eq.left.set("join_mark", False)
-        join_on = new_eq.left
-        assert isinstance(join_on, exp.Column)
-        return sqlglot.parse_one(f"LEFT JOIN {join_on.table}", into=exp.Join).on(new_eq)
-    if right_has_join_mark:
+        assert isinstance(new_eq.left, exp.Column)
+        join_on = new_eq.left.table
+    elif right_has_join_mark:
         new_eq.right.set("join_mark", False)
-        join_on = new_eq.right
-        assert isinstance(join_on, exp.Column)
-        return sqlglot.parse_one(f"LEFT JOIN {join_on.table}", into=exp.Join).on(new_eq)
-    return None
+        assert isinstance(new_eq.right, exp.Column)
+        join_on = new_eq.right.table
+    else:
+        return None
+
+    join_this = old_joins.get(join_on, old_from).this
+    return exp.Join(this=join_this, on=new_eq, kind="LEFT")
 
 
 def remove_join_marks_from_select(select: exp.Select) -> exp.Select:
@@ -129,7 +133,6 @@ def remove_join_marks_from_select(select: exp.Select) -> exp.Select:
     Returns:
         exp.Select: The AST with join marks removed
     """
-    select = eliminate_subqueries(select)
     old_joins: Dict[str, exp.Join] = {
         join.alias_or_name: join for join in list(select.args.get("joins", []))
     }
@@ -146,7 +149,9 @@ def remove_join_marks_from_select(select: exp.Select) -> exp.Select:
             predicate_parent = predicate.parent
             logger.debug(f"predicate parent: {predicate_parent}")
             join_on = predicate.pop()
-            new_join = _equality_to_join(join_on)
+            new_join = _equality_to_join(
+                join_on, old_joins=old_joins, old_from=select.args["from"]
+            )
             logger.debug(f"new_join: {new_join}")
             new_joins = _update_join_dict(new_join, new_joins)
             _clean_binary_node(predicate_parent)
@@ -164,14 +169,12 @@ def remove_join_marks_from_select(select: exp.Select) -> exp.Select:
 
 def remove_join_marks(ast: exp.Expression) -> exp.Expression:
     """Remove join marks from an expression
-    converts subqueries to CTEs.
 
     Args:
         ast (exp.Expression): The AST to remove join marks from
 
     Returns:
         exp.Expression: The AST with join marks removed"""
-    ast = eliminate_subqueries(ast)
     select_nodes = list(ast.find_all(exp.Select))
     select_nodes.reverse()
     # convert inner nodes first
@@ -180,9 +183,13 @@ def remove_join_marks(ast: exp.Expression) -> exp.Expression:
             continue
         replacement = remove_join_marks_from_select(node)
         node.replace(replacement)
+        logger.debug(f"Replaced node {node} with {replacement}")
+        logger.debug(f"updated ast: {ast}")
     # transform outer node
     if isinstance(ast, exp.Select):
+        logger.debug(f"Removing join marks from {ast}")
         ast = remove_join_marks_from_select(ast)
+        logger.debug(f"updated ast: {ast}")
     return ast
 
 
