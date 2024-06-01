@@ -195,7 +195,6 @@ def remove_join_marks(ast: exp.Expression) -> exp.Expression:
 
 def remove_join_marks_from_oracle_sql(sql: str) -> str:
     """Remove join marks from the where columns in all subqueries within the provided select statement.
-    subqueries are converted to CTEs using eliminate_subqueries.
 
     Args:
         sql (str): The SQL statement to remove join marks from
